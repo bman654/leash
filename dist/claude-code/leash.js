@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+// packages/claude-code/leash.ts
+import { homedir as homedir2 } from "os";
+
 // packages/core/command-analyzer.ts
 import { basename } from "path";
 
@@ -398,6 +401,19 @@ function resolveWorkingDirectories(cwd, transcriptPath) {
 }
 
 // packages/claude-code/leash.ts
+function parseCliDirectories() {
+  const args = process.argv.slice(2);
+  const directories = [];
+  for (const arg of args) {
+    const expanded = arg.replace(/^~(?=\/|$)/, homedir2());
+    if (expanded.startsWith("/")) {
+      directories.push(expanded);
+    } else {
+      console.error(`Warning: Relative path "${arg}" ignored. Only absolute paths are accepted.`);
+    }
+  }
+  return directories;
+}
 async function readStdin() {
   const chunks = [];
   for await (const chunk of process.stdin) {
@@ -416,9 +432,11 @@ async function main() {
   }
   const { tool_name, tool_input, cwd, transcript_path } = input;
   const workingDirectories = resolveWorkingDirectories(cwd, transcript_path);
-  const analyzer = new CommandAnalyzer(workingDirectories);
-  const dirsDisplay = workingDirectories.length === 1 ? `Working directory: ${workingDirectories[0]}` : `Working directories:
-  - ${workingDirectories.join("\n  - ")}`;
+  const cliDirectories = parseCliDirectories();
+  const allDirectories = [...workingDirectories, ...cliDirectories];
+  const analyzer = new CommandAnalyzer(allDirectories);
+  const dirsDisplay = allDirectories.length === 1 ? `Working directory: ${allDirectories[0]}` : `Working directories:
+  - ${allDirectories.join("\n  - ")}`;
   if (tool_name === "Bash") {
     const command = tool_input.command || "";
     const result = analyzer.analyze(command);

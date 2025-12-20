@@ -1,5 +1,33 @@
 #!/usr/bin/env node
+import { homedir } from "os";
 import { CommandAnalyzer, resolveWorkingDirectories } from "../core/index.js";
+
+/**
+ * Parse CLI arguments as additional working directories.
+ * Expands ~ to home directory. Only absolute paths are accepted;
+ * relative paths emit a warning to stderr.
+ *
+ * @returns Array of absolute directory paths from CLI args
+ */
+function parseCliDirectories(): string[] {
+  // Skip node and script path
+  const args = process.argv.slice(2);
+  const directories: string[] = [];
+
+  for (const arg of args) {
+    // Expand ~ to home directory
+    const expanded = arg.replace(/^~(?=\/|$)/, homedir());
+
+    // Only accept absolute paths
+    if (expanded.startsWith("/")) {
+      directories.push(expanded);
+    } else {
+      console.error(`Warning: Relative path "${arg}" ignored. Only absolute paths are accepted.`);
+    }
+  }
+
+  return directories;
+}
 
 interface ClaudeCodeHookInput {
   tool_name: string;
@@ -34,13 +62,19 @@ async function main() {
 
   // Resolve all working directories (cwd + additional from project settings)
   const workingDirectories = resolveWorkingDirectories(cwd, transcript_path);
-  const analyzer = new CommandAnalyzer(workingDirectories);
+
+  // Add CLI-specified directories
+  const cliDirectories = parseCliDirectories();
+
+  // Merge all directories
+  const allDirectories = [...workingDirectories, ...cliDirectories];
+  const analyzer = new CommandAnalyzer(allDirectories);
 
   // Format directories for error messages
   const dirsDisplay =
-    workingDirectories.length === 1
-      ? `Working directory: ${workingDirectories[0]}`
-      : `Working directories:\n  - ${workingDirectories.join("\n  - ")}`;
+    allDirectories.length === 1
+      ? `Working directory: ${allDirectories[0]}`
+      : `Working directories:\n  - ${allDirectories.join("\n  - ")}`;
 
   // Shell command execution
   if (tool_name === "Bash") {
