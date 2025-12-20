@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { CommandAnalyzer } from "../core/index.js";
+import { CommandAnalyzer, resolveWorkingDirectories } from "../core/index.js";
 
 interface ClaudeCodeHookInput {
   tool_name: string;
@@ -8,6 +8,7 @@ interface ClaudeCodeHookInput {
     file_path?: string;
   };
   cwd: string;
+  transcript_path?: string;
 }
 
 async function readStdin(): Promise<string> {
@@ -29,8 +30,17 @@ async function main() {
     process.exit(1);
   }
 
-  const { tool_name, tool_input, cwd } = input;
-  const analyzer = new CommandAnalyzer(cwd);
+  const { tool_name, tool_input, cwd, transcript_path } = input;
+
+  // Resolve all working directories (cwd + additional from project settings)
+  const workingDirectories = resolveWorkingDirectories(cwd, transcript_path);
+  const analyzer = new CommandAnalyzer(workingDirectories);
+
+  // Format directories for error messages
+  const dirsDisplay =
+    workingDirectories.length === 1
+      ? `Working directory: ${workingDirectories[0]}`
+      : `Working directories:\n  - ${workingDirectories.join("\n  - ")}`;
 
   // Shell command execution
   if (tool_name === "Bash") {
@@ -41,7 +51,7 @@ async function main() {
       console.error(
         `🚫 Command blocked: ${command}\n` +
           `Reason: ${result.reason}\n` +
-          `Working directory: ${cwd}\n` +
+          `${dirsDisplay}\n` +
           `Action: Guide the user to run the command manually.`
       );
       process.exit(2);
@@ -57,7 +67,7 @@ async function main() {
       console.error(
         `🚫 File operation blocked: ${path}\n` +
           `Reason: ${result.reason}\n` +
-          `Working directory: ${cwd}\n` +
+          `${dirsDisplay}\n` +
           `Action: Guide the user to perform this operation manually.`
       );
       process.exit(2);

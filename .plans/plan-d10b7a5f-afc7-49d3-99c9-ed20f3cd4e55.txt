@@ -1,0 +1,10 @@
+🌳 "additional-working-directories"
+📝 Implement support for Claude Code's additional working directories in bash-leash
+📊 ██████████ 100% (6/6 tasks)
+
+├── ✅ |Create project-resolver.ts| "New module with sanitizePath, findProjectDirectory, getAdditionalDirectories, resolveWorkingDirectories functions" (🔴)
+├── ✅ |Modify path-validator.ts| "Change constructor to accept string | string[], update isWithinWorkingDir to check all directories" (🔴)
+├── ✅ |Modify command-analyzer.ts| "Update constructor to accept string | string[], pass array to PathValidator" (🔴)
+├── ✅ |Update index.ts exports| "Export new functions from project-resolver.ts" (🟡)
+├── ✅ |Modify claude-code leash.ts| "Wire up resolveWorkingDirectories, update interface for transcript_path" (🔴)
+└── ✅ |Build and test| "Run npm build, test with actual hook input" (🔴)

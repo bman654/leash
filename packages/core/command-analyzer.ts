@@ -9,9 +9,24 @@ export interface AnalysisResult {
 
 export class CommandAnalyzer {
   private pathValidator: PathValidator;
+  private workingDirectory: string;
 
-  constructor(private workingDirectory: string) {
-    this.pathValidator = new PathValidator(workingDirectory);
+  /**
+   * Create a CommandAnalyzer for one or more working directories.
+   *
+   * @param workingDirectories - Single directory or array of directories
+   */
+  constructor(workingDirectories: string | string[]) {
+    // Normalize to array
+    const dirs = Array.isArray(workingDirectories)
+      ? workingDirectories
+      : [workingDirectories];
+
+    // Primary directory for legacy compatibility
+    this.workingDirectory = dirs[0];
+
+    // PathValidator handles multi-directory checking
+    this.pathValidator = new PathValidator(dirs);
   }
 
   /** Extract potential paths from command string */

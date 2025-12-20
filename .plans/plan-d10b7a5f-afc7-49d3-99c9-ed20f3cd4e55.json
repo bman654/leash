@@ -1,0 +1,63 @@
+{
+  "uuid": "d10b7a5f-afc7-49d3-99c9-ed20f3cd4e55",
+  "name": "additional-working-directories",
+  "details": "Implement support for Claude Code's additional working directories in bash-leash",
+  "tasks": [
+    {
+      "name": "Create project-resolver.ts",
+      "details": "New module with sanitizePath, findProjectDirectory, getAdditionalDirectories, resolveWorkingDirectories functions",
+      "status": "completed",
+      "priority": "high",
+      "uuid": "0ba84fed-7f11-437d-9f08-840e83974073",
+      "created_at": "2025-12-20T03:36:54.308Z",
+      "updated_at": "2025-12-20T03:37:36.459Z"
+    },
+    {
+      "name": "Modify path-validator.ts",
+      "details": "Change constructor to accept string | string[], update isWithinWorkingDir to check all directories",
+      "status": "completed",
+      "priority": "high",
+      "uuid": "33bddf07-56a4-4d3e-b1da-36f96b9b679b",
+      "created_at": "2025-12-20T03:36:54.309Z",
+      "updated_at": "2025-12-20T03:38:02.383Z"
+    },
+    {
+      "name": "Modify command-analyzer.ts",
+      "details": "Update constructor to accept string | string[], pass array to PathValidator",
+      "status": "completed",
+      "priority": "high",
+      "uuid": "15906ae1-cf44-42ae-ad8f-089c74b984b4",
+      "created_at": "2025-12-20T03:36:54.309Z",
+      "updated_at": "2025-12-20T03:38:22.264Z"
+    },
+    {
+      "name": "Update index.ts exports",
+      "details": "Export new functions from project-resolver.ts",
+      "status": "completed",
+      "priority": "medium",
+      "uuid": "dbe8005b-4af6-49e6-bc9e-958b8e63eac7",
+      "created_at": "2025-12-20T03:36:54.309Z",
+      "updated_at": "2025-12-20T03:38:37.303Z"
+    },
+    {
+      "name": "Modify claude-code leash.ts",
+      "details": "Wire up resolveWorkingDirectories, update interface for transcript_path",
+      "status": "completed",
+      "priority": "high",
+      "uuid": "b1804b71-5071-45f4-89ed-fd743fe4dd32",
+      "created_at": "2025-12-20T03:36:54.309Z",
+      "updated_at": "2025-12-20T03:39:00.836Z"
+    },
+    {
+      "name": "Build and test",
+      "details": "Run npm build, test with actual hook input",
+      "status": "completed",
+      "priority": "high",
+      "uuid": "7db25e0f-6e20-4996-b3bd-0ae6fbdb0c58",
+      "created_at": "2025-12-20T03:36:54.309Z",
+      "updated_at": "2025-12-20T03:40:00.066Z"
+    }
+  ],
+  "created_at": "2025-12-20T03:36:54.309Z",
+  "updated_at": "2025-12-20T03:40:00.229Z"
+}
