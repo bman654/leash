@@ -6,9 +6,4 @@ export {
   SAFE_WRITE_PATHS,
   TEMP_PATHS,
 } from "./constants.js";
-export {
-  sanitizePath,
-  findProjectDirectory,
-  getAdditionalDirectories,
-  resolveWorkingDirectories,
-} from "./project-resolver.js";
+export { getAdditionalDirectories } from "./project-resolver.js";

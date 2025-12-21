@@ -194,7 +194,7 @@ var CommandAnalyzer = class {
       if (path && !this.pathValidator.isSafeForWrite(path) && !this.pathValidator.isWithinWorkingDir(path)) {
         return {
           blocked: true,
-          reason: `Redirect to path outside working directory: ${path}`
+          reason: `Redirect to path outside allowed directories: ${path}`
         };
       }
     }
@@ -246,7 +246,7 @@ var CommandAnalyzer = class {
         const action = hasDelete ? "-delete" : `-exec ${dangerousExec?.[1]}`;
         return {
           blocked: true,
-          reason: `Command "find" with ${action} targets path outside working directory: ${path}`
+          reason: `Command "find" with ${action} targets path outside allowed directories: ${path}`
         };
       }
     }
@@ -298,7 +298,7 @@ var CommandAnalyzer = class {
       if (!this.isPathAllowed(dest, true)) {
         return {
           blocked: true,
-          reason: `Command "${baseCmd}" targets path outside working directory: ${dest}`
+          reason: `Command "${baseCmd}" targets path outside allowed directories: ${dest}`
         };
       }
       return { blocked: false };
@@ -308,7 +308,7 @@ var CommandAnalyzer = class {
       if (!this.isPathAllowed(path, isWriteCommand)) {
         return {
           blocked: true,
-          reason: `Command "${baseCmd}" targets path outside working directory: ${path}`
+          reason: `Command "${baseCmd}" targets path outside allowed directories: ${path}`
         };
       }
     }
@@ -337,7 +337,7 @@ var CommandAnalyzer = class {
     if (!this.pathValidator.isSafeForWrite(path) && !this.pathValidator.isWithinWorkingDir(path)) {
       return {
         blocked: true,
-        reason: `File operation targets path outside working directory: ${path}`
+        reason: `File operation targets path outside allowed directories: ${path}`
       };
     }
     return { blocked: false };
@@ -345,26 +345,8 @@ var CommandAnalyzer = class {
 };
 
 // packages/core/project-resolver.ts
-import { dirname, basename as basename2, resolve as resolve2 } from "path";
+import { resolve as resolve2 } from "path";
 import { readFileSync, existsSync } from "fs";
-function sanitizePath(path) {
-  return path.replace(/[^a-zA-Z0-9]/g, "-");
-}
-function findProjectDirectory(cwd, transcriptPath) {
-  const projectsDir = dirname(transcriptPath);
-  const sanitizedName = basename2(projectsDir);
-  let current = resolve2(cwd);
-  while (current !== "/" && current.length > 1) {
-    if (sanitizePath(current) === sanitizedName) {
-      return current;
-    }
-    current = dirname(current);
-  }
-  if (sanitizePath(current) === sanitizedName) {
-    return current;
-  }
-  return null;
-}
 function getAdditionalDirectories(projectDir) {
   const settingsPath = resolve2(projectDir, ".claude", "settings.local.json");
   if (!existsSync(settingsPath)) {
@@ -383,21 +365,6 @@ function getAdditionalDirectories(projectDir) {
   } catch {
     return [];
   }
-}
-function resolveWorkingDirectories(cwd, transcriptPath) {
-  const directories = [cwd];
-  if (!transcriptPath) {
-    return directories;
-  }
-  const projectDir = findProjectDirectory(cwd, transcriptPath);
-  if (!projectDir) {
-    return directories;
-  }
-  if (projectDir !== cwd) {
-    directories.push(projectDir);
-  }
-  const additional = getAdditionalDirectories(projectDir);
-  return [...directories, ...additional];
 }
 
 // packages/claude-code/leash.ts
@@ -430,13 +397,22 @@ async function main() {
     console.error("Failed to parse input JSON");
     process.exit(1);
   }
-  const { tool_name, tool_input, cwd, transcript_path } = input;
-  const workingDirectories = resolveWorkingDirectories(cwd, transcript_path);
+  const { tool_name, tool_input, cwd } = input;
+  const projectDir = process.env.CLAUDE_PROJECT_DIR;
+  const directories = [cwd];
+  if (projectDir && projectDir !== cwd) {
+    directories.push(projectDir);
+  }
+  if (projectDir) {
+    const additionalDirs = getAdditionalDirectories(projectDir);
+    directories.push(...additionalDirs);
+  }
   const cliDirectories = parseCliDirectories();
-  const allDirectories = [...workingDirectories, ...cliDirectories];
-  const analyzer = new CommandAnalyzer(allDirectories);
-  const dirsDisplay = allDirectories.length === 1 ? `Working directory: ${allDirectories[0]}` : `Working directories:
-  - ${allDirectories.join("\n  - ")}`;
+  directories.push(...cliDirectories);
+  const analyzer = new CommandAnalyzer(directories);
+  const projectDisplay = projectDir ? `Project directory: ${projectDir}` : "Project directory: (not set)";
+  const dirsDisplay = directories.length === 1 ? `Allowed directory: ${directories[0]}` : `Allowed directories:
+  - ${directories.join("\n  - ")}`;
   if (tool_name === "Bash") {
     const command = tool_input.command || "";
     const result = analyzer.analyze(command);
@@ -444,6 +420,7 @@ async function main() {
       console.error(
         `\u{1F6AB} Command blocked: ${command}
 Reason: ${result.reason}
+${projectDisplay}
 ${dirsDisplay}
 Action: Guide the user to run the command manually.`
       );
@@ -457,6 +434,7 @@ Action: Guide the user to run the command manually.`
       console.error(
         `\u{1F6AB} File operation blocked: ${path}
 Reason: ${result.reason}
+${projectDisplay}
 ${dirsDisplay}
 Action: Guide the user to perform this operation manually.`
       );

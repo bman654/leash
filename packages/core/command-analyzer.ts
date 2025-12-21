@@ -134,7 +134,7 @@ export class CommandAnalyzer {
       ) {
         return {
           blocked: true,
-          reason: `Redirect to path outside working directory: ${path}`,
+          reason: `Redirect to path outside allowed directories: ${path}`,
         };
       }
     }
@@ -211,7 +211,7 @@ export class CommandAnalyzer {
         const action = hasDelete ? "-delete" : `-exec ${dangerousExec?.[1]}`;
         return {
           blocked: true,
-          reason: `Command "find" with ${action} targets path outside working directory: ${path}`,
+          reason: `Command "find" with ${action} targets path outside allowed directories: ${path}`,
         };
       }
     }
@@ -282,7 +282,7 @@ export class CommandAnalyzer {
       if (!this.isPathAllowed(dest, true)) {
         return {
           blocked: true,
-          reason: `Command "${baseCmd}" targets path outside working directory: ${dest}`,
+          reason: `Command "${baseCmd}" targets path outside allowed directories: ${dest}`,
         };
       }
       return { blocked: false };
@@ -295,7 +295,7 @@ export class CommandAnalyzer {
       if (!this.isPathAllowed(path, isWriteCommand)) {
         return {
           blocked: true,
-          reason: `Command "${baseCmd}" targets path outside working directory: ${path}`,
+          reason: `Command "${baseCmd}" targets path outside allowed directories: ${path}`,
         };
       }
     }
@@ -340,7 +340,7 @@ export class CommandAnalyzer {
     ) {
       return {
         blocked: true,
-        reason: `File operation targets path outside working directory: ${path}`,
+        reason: `File operation targets path outside allowed directories: ${path}`,
       };
     }
 

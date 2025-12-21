@@ -1,0 +1,8 @@
+🌳 "fix-unsanitize-paths"
+📝 Fix the bug where additional directories from settings.local.json are not loaded when cwd is a sibling of the project directory. Implement unsanitizePath algorithm to reconstruct project path from sanitized transcript path.
+📊 ██████████ 100% (4/4 tasks)
+
+├── ✅ |Implement unsanitizePath| "Add unsanitizePath function to project-resolver.ts that returns all matching filesystem paths for a given sanitized path string" (🔴)
+├── ✅ |Test with /tmp scenarios| "Create test directory structures in /tmp to verify the algorithm handles:\n- Simple paths\n- Hyphenated directory names\n- Hidden directories (.claude)\n- Ambiguous paths (both /a/b and /a-b exist)" (🔴)
+├── ✅ |Integrate into core| "Update findProjectDirectory and resolveWorkingDirectories to use unsanitizePath instead of walking up from cwd. Handle multiple candidate paths by adding all to working directories." (🔴)
+└── ✅ |Build and verify| "Run npm build and test the complete flow" (🟡)
