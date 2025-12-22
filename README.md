@@ -197,6 +197,22 @@ rm -rf /tmp/my-app-cache
 rm ~/shared/old-file.txt  # if ~/shared passed as CLI arg
 ```
 
+## Temporary Unblock
+
+For situations where you need to temporarily bypass Leash protection, create the file `/tmp/dunblock`:
+
+```bash
+touch /tmp/dunblock
+```
+
+While this file exists, **all Leash checks are bypassed**. Remove it when done:
+
+```bash
+rm /tmp/dunblock
+```
+
+⚠️ **Use with caution** — this disables all security checks until the file is removed.
+
 ## Limitations
 
 Leash is a **defense-in-depth** layer, not a complete sandbox. It cannot protect against:
