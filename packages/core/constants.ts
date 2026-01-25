@@ -1,4 +1,4 @@
-/** Commands that modify filesystem - blocked outside working directory */
+/** Commands that modify filesystem - blocked outside allowed directories */
 export const DANGEROUS_COMMANDS = new Set([
   "rm",
   "rmdir",

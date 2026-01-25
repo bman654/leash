@@ -33,36 +33,59 @@ var SAFE_WRITE_PATHS = [...DEVICE_PATHS, ...TEMP_PATHS];
 
 // packages/core/path-validator.ts
 var PathValidator = class {
-  constructor(workingDirectory) {
-    this.workingDirectory = workingDirectory;
+  workingDirectories;
+  primaryWorkingDirectory;
+  /**
+   * Create a PathValidator for one or more working directories.
+   *
+   * @param workingDirectories - Single directory or array of directories
+   */
+  constructor(workingDirectories) {
+    this.workingDirectories = Array.isArray(workingDirectories) ? workingDirectories : [workingDirectories];
+    this.primaryWorkingDirectory = this.workingDirectories[0];
   }
   /** Expand ~ and environment variables in path */
   expand(path) {
     return path.replace(/^~(?=\/|$)/, homedir()).replace(/\$\{?(\w+)\}?/g, (_, name) => {
       if (name === "HOME") return homedir();
-      if (name === "PWD") return this.workingDirectory;
+      if (name === "PWD") return this.primaryWorkingDirectory;
       return process.env[name] || "";
     });
   }
   /** Resolve path following all symlinks (including parent directories) */
   resolveReal(path) {
     const expanded = this.expand(path);
-    const resolved = resolve(this.workingDirectory, expanded);
+    const resolved = resolve(this.primaryWorkingDirectory, expanded);
     try {
       return realpathSync(resolved);
     } catch {
       return resolved;
     }
   }
+  /**
+   * Check if a path is within any of the working directories.
+   *
+   * @param path - The path to check
+   * @returns true if the path is within any working directory
+   */
   isWithinWorkingDir(path) {
     try {
       const realPath = this.resolveReal(path);
-      const realWorkDir = realpathSync(this.workingDirectory);
-      if (realPath === realWorkDir) {
-        return true;
+      for (const workDir of this.workingDirectories) {
+        try {
+          const realWorkDir = realpathSync(workDir);
+          if (realPath === realWorkDir) {
+            return true;
+          }
+          const rel = relative(realWorkDir, realPath);
+          if (rel && !rel.startsWith("..") && !rel.startsWith("/")) {
+            return true;
+          }
+        } catch {
+          continue;
+        }
       }
-      const rel = relative(realWorkDir, realPath);
-      return !!rel && !rel.startsWith("..") && !rel.startsWith("/");
+      return false;
     } catch {
       return false;
     }
@@ -82,22 +105,33 @@ var PathValidator = class {
 
 // packages/core/command-analyzer.ts
 var CommandAnalyzer = class {
-  constructor(workingDirectory) {
-    this.workingDirectory = workingDirectory;
-    this.pathValidator = new PathValidator(workingDirectory);
-  }
   pathValidator;
-  /** Extract potential paths from command string */
+  workingDirectory;
+  /**
+   * Create a CommandAnalyzer for one or more working directories.
+   *
+   * @param workingDirectories - Single directory or array of directories
+   */
+  constructor(workingDirectories) {
+    const dirs = Array.isArray(workingDirectories) ? workingDirectories : [workingDirectories];
+    this.workingDirectory = dirs[0];
+    this.pathValidator = new PathValidator(dirs);
+  }
+  /**
+   * Extract potential paths from command string, preserving argument order.
+   * Uses single-pass regex to match quoted and unquoted arguments left-to-right.
+   */
   extractPaths(command) {
+    const argPattern = /["']([^"']+)["']|(\S+)/g;
     const paths = [];
-    const quoted = command.match(/["']([^"']+)["']/g) || [];
-    quoted.forEach((q) => paths.push(q.slice(1, -1)));
-    const tokens = command.replace(/["'][^"']*["']/g, "").split(/\s+/).filter((t) => !t.startsWith("-"));
-    tokens.forEach((t) => {
-      if (t.includes("/") || t.startsWith("~") || t.startsWith(".") || t.startsWith("$")) {
-        paths.push(t);
+    let match;
+    while ((match = argPattern.exec(command)) !== null) {
+      const arg = match[1] ?? match[2];
+      if (arg.startsWith("-")) continue;
+      if (arg.includes("/") || arg.startsWith("~") || arg.startsWith(".") || arg.startsWith("$")) {
+        paths.push(arg);
       }
-    });
+    }
     return paths;
   }
   /** Get the base command name */
@@ -159,7 +193,7 @@ var CommandAnalyzer = class {
       if (path && !this.pathValidator.isSafeForWrite(path) && !this.pathValidator.isWithinWorkingDir(path)) {
         return {
           blocked: true,
-          reason: `Redirect to path outside working directory: ${path}`
+          reason: `Redirect to path outside allowed directories: ${path}`
         };
       }
     }
@@ -170,9 +204,90 @@ var CommandAnalyzer = class {
     if (this.pathValidator.isWithinWorkingDir(path)) return true;
     return allowDevicePaths ? this.pathValidator.isSafeForWrite(path) : this.pathValidator.isTempPath(path);
   }
+  /**
+   * Extract search paths from find command
+   * find [options] [path...] [expression]
+   * Paths come after 'find' and before first flag/expression
+   * Handles quoted paths by stripping quotes
+   */
+  extractFindPaths(command) {
+    const tokens = command.trim().split(/\s+/);
+    const paths = [];
+    for (let i = 1; i < tokens.length; i++) {
+      let token = tokens[i];
+      if (token.startsWith('"') && token.endsWith('"') || token.startsWith("'") && token.endsWith("'")) {
+        token = token.slice(1, -1);
+      }
+      if (token.startsWith("-") || token === "!" || token === "(" || token === "\\(") {
+        break;
+      }
+      paths.push(token);
+    }
+    return paths.length > 0 ? paths : ["."];
+  }
+  /**
+   * Check find command for destructive actions (-delete, -exec, -ok, etc.)
+   * Validates search paths if destructive action is present
+   */
+  checkFindCommand(command) {
+    const hasDelete = /\s-delete\b/.test(command);
+    const execPattern = /-(?:exec|ok)(?:dir)?\s+(\S+)/g;
+    const execMatches = [...command.matchAll(execPattern)];
+    const dangerousExec = execMatches.find(
+      (match) => DANGEROUS_COMMANDS.has(basename(match[1]))
+    );
+    if (!hasDelete && !dangerousExec) {
+      return { blocked: false };
+    }
+    const paths = this.extractFindPaths(command);
+    for (const path of paths) {
+      if (!this.isPathAllowed(path, false)) {
+        const action = hasDelete ? "-delete" : `-exec ${dangerousExec?.[1]}`;
+        return {
+          blocked: true,
+          reason: `Command "find" with ${action} targets path outside allowed directories: ${path}`
+        };
+      }
+    }
+    return { blocked: false };
+  }
+  /**
+   * Check xargs command for dangerous commands
+   * Cannot validate piped input, so block if dangerous command detected
+   */
+  checkXargsCommand(command) {
+    const tokens = command.trim().split(/\s+/);
+    const optsWithArgs = /* @__PURE__ */ new Set(["-I", "-L", "-n", "-P", "-s", "-d", "-E", "-a"]);
+    let i = 1;
+    while (i < tokens.length) {
+      const token = tokens[i];
+      if (token.startsWith("-")) {
+        if (optsWithArgs.has(token) && i + 1 < tokens.length) {
+          i++;
+        }
+        i++;
+        continue;
+      }
+      const cmd = basename(token);
+      if (DANGEROUS_COMMANDS.has(cmd)) {
+        return {
+          blocked: true,
+          reason: `Command "xargs ${cmd}" blocked - cannot validate piped input`
+        };
+      }
+      break;
+    }
+    return { blocked: false };
+  }
   /** Check dangerous commands for external paths */
   checkDangerousCommand(command) {
     const baseCmd = this.getBaseCommand(command);
+    if (baseCmd === "find") {
+      return this.checkFindCommand(command);
+    }
+    if (baseCmd === "xargs") {
+      return this.checkXargsCommand(command);
+    }
     if (!DANGEROUS_COMMANDS.has(baseCmd)) {
       return { blocked: false };
     }
@@ -182,7 +297,7 @@ var CommandAnalyzer = class {
       if (!this.isPathAllowed(dest, true)) {
         return {
           blocked: true,
-          reason: `Command "${baseCmd}" targets path outside working directory: ${dest}`
+          reason: `Command "${baseCmd}" targets path outside allowed directories: ${dest}`
         };
       }
       return { blocked: false };
@@ -192,7 +307,7 @@ var CommandAnalyzer = class {
       if (!this.isPathAllowed(path, isWriteCommand)) {
         return {
           blocked: true,
-          reason: `Command "${baseCmd}" targets path outside working directory: ${path}`
+          reason: `Command "${baseCmd}" targets path outside allowed directories: ${path}`
         };
       }
     }
@@ -202,6 +317,11 @@ var CommandAnalyzer = class {
   analyze(command) {
     const redirectResult = this.checkRedirects(command);
     if (redirectResult.blocked) return redirectResult;
+    const baseCmd = this.getBaseCommand(command);
+    if (baseCmd === "find") {
+      const findResult = this.checkFindCommand(command);
+      if (findResult.blocked) return findResult;
+    }
     const commands = this.splitCommands(command);
     for (const cmd of commands) {
       const trimmed = cmd.trim();
@@ -216,7 +336,7 @@ var CommandAnalyzer = class {
     if (!this.pathValidator.isSafeForWrite(path) && !this.pathValidator.isWithinWorkingDir(path)) {
       return {
         blocked: true,
-        reason: `File operation targets path outside working directory: ${path}`
+        reason: `File operation targets path outside allowed directories: ${path}`
       };
     }
     return { blocked: false };

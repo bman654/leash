@@ -1,0 +1,45 @@
+{
+  "uuid": "44949a6b-23bd-4bde-b791-ac3cdfbfb01e",
+  "name": "fix-unsanitize-paths",
+  "details": "Fix the bug where additional directories from settings.local.json are not loaded when cwd is a sibling of the project directory. Implement unsanitizePath algorithm to reconstruct project path from sanitized transcript path.",
+  "tasks": [
+    {
+      "name": "Implement unsanitizePath",
+      "details": "Add unsanitizePath function to project-resolver.ts that returns all matching filesystem paths for a given sanitized path string",
+      "status": "completed",
+      "priority": "high",
+      "uuid": "0228d503-a940-4bcb-a186-37b2c4cf301a",
+      "created_at": "2025-12-21T10:53:27.609Z",
+      "updated_at": "2025-12-21T10:55:29.471Z"
+    },
+    {
+      "name": "Test with /tmp scenarios",
+      "details": "Create test directory structures in /tmp to verify the algorithm handles:\n- Simple paths\n- Hyphenated directory names\n- Hidden directories (.claude)\n- Ambiguous paths (both /a/b and /a-b exist)",
+      "status": "completed",
+      "priority": "high",
+      "uuid": "e5e801c0-d6ca-4ba0-a9ae-54db4e82d384",
+      "created_at": "2025-12-21T10:53:27.610Z",
+      "updated_at": "2025-12-21T10:55:29.471Z"
+    },
+    {
+      "name": "Integrate into core",
+      "details": "Update findProjectDirectory and resolveWorkingDirectories to use unsanitizePath instead of walking up from cwd. Handle multiple candidate paths by adding all to working directories.",
+      "status": "completed",
+      "priority": "high",
+      "uuid": "063727e5-4ad1-49c7-9416-cc1f7ffa2c9d",
+      "created_at": "2025-12-21T10:53:27.610Z",
+      "updated_at": "2025-12-21T10:57:32.553Z"
+    },
+    {
+      "name": "Build and verify",
+      "details": "Run npm build and test the complete flow",
+      "status": "completed",
+      "priority": "medium",
+      "uuid": "0d6ea255-9653-43bf-8189-28fbf96d4d47",
+      "created_at": "2025-12-21T10:53:27.610Z",
+      "updated_at": "2025-12-21T10:57:32.553Z"
+    }
+  ],
+  "created_at": "2025-12-21T10:53:27.610Z",
+  "updated_at": "2025-12-21T10:57:32.553Z"
+}

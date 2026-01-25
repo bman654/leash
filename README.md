@@ -110,6 +110,36 @@ cd ~/leash && git pull
 - **Shell Wrapper Detection** — Catches `bash -c`, `eval`, `exec` executing dangerous code
 - **Interpreter Monitoring** — Detects filesystem operations in `python -c`, `node -e`, `ruby -e`
 - **Variable Expansion** — Resolves `$HOME`, `~`, and environment variables before validation
+- **Additional Directories** — Allow operations in extra directories via CLI arguments (Claude Code)
+
+## Additional Working Directories
+
+By default, Leash restricts operations to the current working directory and temp paths. For Claude Code, you can allow additional directories by passing them as CLI arguments:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ~/leash/dist/claude-code/leash.js ~/shared ~/data"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Requirements:**
+- Paths must be absolute (starting with `/` or `~`)
+- `~` is expanded to the home directory
+- Relative paths are ignored with a warning to stderr
+
+This is useful when your workflow requires access to directories outside the project, such as shared data folders or output directories.
 
 ## How It Works
 
@@ -162,7 +192,26 @@ cp ./template.json ./config.json
 # ✅ Allowed: Temp directory operations
 echo "cache" > /tmp/build-cache.txt
 rm -rf /tmp/my-app-cache
+
+# ✅ Allowed: CLI-specified additional directories
+rm ~/shared/old-file.txt  # if ~/shared passed as CLI arg
 ```
+
+## Temporary Unblock
+
+For situations where you need to temporarily bypass Leash protection, create the file `/tmp/dunblock`:
+
+```bash
+touch /tmp/dunblock
+```
+
+While this file exists, **all Leash checks are bypassed**. Remove it when done:
+
+```bash
+rm /tmp/dunblock
+```
+
+⚠️ **Use with caution** — this disables all security checks until the file is removed.
 
 ## Limitations
 

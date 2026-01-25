@@ -1,0 +1,8 @@
+🌳 "bash-leash-bypass-fixes"
+📝 Implement Option 2: Token-based detection for find and xargs bypass vectors
+📊 ██████████ 100% (4/4 tasks)
+
+├── ✅ |Add checkFindCommand| "Add method to detect find -delete and find -exec [dangerous] patterns, extract and validate search paths" (🔴)
+├── ✅ |Add checkXargsCommand| "Add method to detect xargs with dangerous commands, skip xargs options properly" (🔴)
+├── ✅ |Integrate into checkDangerousCommand| "Call the new methods before DANGEROUS_COMMANDS check" (🔴)
+└── ✅ |Build and test| "Run npm build, test against the 4 bypass patterns" (🔴)

@@ -1,0 +1,45 @@
+{
+  "uuid": "e9b6b560-cf2d-474a-a9dd-b036d971a841",
+  "name": "bash-leash-bypass-fixes",
+  "details": "Implement Option 2: Token-based detection for find and xargs bypass vectors",
+  "tasks": [
+    {
+      "name": "Add checkFindCommand",
+      "details": "Add method to detect find -delete and find -exec [dangerous] patterns, extract and validate search paths",
+      "status": "completed",
+      "priority": "high",
+      "uuid": "c7ae5332-cf9a-43f2-90c5-982fc81d4043",
+      "created_at": "2025-12-18T19:59:57.169Z",
+      "updated_at": "2025-12-18T20:00:28.220Z"
+    },
+    {
+      "name": "Add checkXargsCommand",
+      "details": "Add method to detect xargs with dangerous commands, skip xargs options properly",
+      "status": "completed",
+      "priority": "high",
+      "uuid": "4aaeb755-35b9-4b3d-931b-bb40bd6a1f96",
+      "created_at": "2025-12-18T19:59:57.170Z",
+      "updated_at": "2025-12-18T20:00:28.220Z"
+    },
+    {
+      "name": "Integrate into checkDangerousCommand",
+      "details": "Call the new methods before DANGEROUS_COMMANDS check",
+      "status": "completed",
+      "priority": "high",
+      "uuid": "c40a446c-d72b-49cd-bae4-a8cdeccc8519",
+      "created_at": "2025-12-18T19:59:57.170Z",
+      "updated_at": "2025-12-18T20:00:28.220Z"
+    },
+    {
+      "name": "Build and test",
+      "details": "Run npm build, test against the 4 bypass patterns",
+      "status": "completed",
+      "priority": "high",
+      "uuid": "456a1fba-d88f-4328-8765-86c4237888df",
+      "created_at": "2025-12-18T19:59:57.170Z",
+      "updated_at": "2025-12-18T20:02:08.424Z"
+    }
+  ],
+  "created_at": "2025-12-18T19:59:57.170Z",
+  "updated_at": "2025-12-20T02:57:21.852Z"
+}

@@ -9,35 +9,53 @@ export interface AnalysisResult {
 
 export class CommandAnalyzer {
   private pathValidator: PathValidator;
+  private workingDirectory: string;
 
-  constructor(private workingDirectory: string) {
-    this.pathValidator = new PathValidator(workingDirectory);
+  /**
+   * Create a CommandAnalyzer for one or more working directories.
+   *
+   * @param workingDirectories - Single directory or array of directories
+   */
+  constructor(workingDirectories: string | string[]) {
+    // Normalize to array
+    const dirs = Array.isArray(workingDirectories)
+      ? workingDirectories
+      : [workingDirectories];
+
+    // Primary directory for legacy compatibility
+    this.workingDirectory = dirs[0];
+
+    // PathValidator handles multi-directory checking
+    this.pathValidator = new PathValidator(dirs);
   }
 
-  /** Extract potential paths from command string */
+  /**
+   * Extract potential paths from command string, preserving argument order.
+   * Uses single-pass regex to match quoted and unquoted arguments left-to-right.
+   */
   private extractPaths(command: string): string[] {
+    // Match arguments in order: quoted strings OR unquoted tokens
+    const argPattern = /["']([^"']+)["']|(\S+)/g;
     const paths: string[] = [];
+    let match;
 
-    // Match quoted strings
-    const quoted = command.match(/["']([^"']+)["']/g) || [];
-    quoted.forEach((q) => paths.push(q.slice(1, -1)));
+    while ((match = argPattern.exec(command)) !== null) {
+      // Group 1 = quoted content (without quotes), Group 2 = unquoted token
+      const arg = match[1] ?? match[2];
 
-    // Match unquoted paths
-    const tokens = command
-      .replace(/["'][^"']*["']/g, "")
-      .split(/\s+/)
-      .filter((t) => !t.startsWith("-"));
+      // Skip flags
+      if (arg.startsWith("-")) continue;
 
-    tokens.forEach((t) => {
+      // Filter for path-like arguments
       if (
-        t.includes("/") ||
-        t.startsWith("~") ||
-        t.startsWith(".") ||
-        t.startsWith("$")
+        arg.includes("/") ||
+        arg.startsWith("~") ||
+        arg.startsWith(".") ||
+        arg.startsWith("$")
       ) {
-        paths.push(t);
+        paths.push(arg);
       }
-    });
+    }
 
     return paths;
   }
@@ -119,7 +137,7 @@ export class CommandAnalyzer {
       ) {
         return {
           blocked: true,
-          reason: `Redirect to path outside working directory: ${path}`,
+          reason: `Redirect to path outside allowed directories: ${path}`,
         };
       }
     }
@@ -135,9 +153,125 @@ export class CommandAnalyzer {
       : this.pathValidator.isTempPath(path);
   }
 
+  /**
+   * Extract search paths from find command
+   * find [options] [path...] [expression]
+   * Paths come after 'find' and before first flag/expression
+   * Handles quoted paths by stripping quotes
+   */
+  private extractFindPaths(command: string): string[] {
+    const tokens = command.trim().split(/\s+/);
+    const paths: string[] = [];
+
+    // Skip 'find', collect paths until first flag or expression
+    for (let i = 1; i < tokens.length; i++) {
+      let token = tokens[i];
+
+      // Strip quotes if present
+      if (
+        (token.startsWith('"') && token.endsWith('"')) ||
+        (token.startsWith("'") && token.endsWith("'"))
+      ) {
+        token = token.slice(1, -1);
+      }
+
+      // Stop at flags, negation, or grouping
+      if (token.startsWith("-") || token === "!" || token === "(" || token === "\\(") {
+        break;
+      }
+      paths.push(token);
+    }
+
+    // Default to current directory if no paths specified
+    return paths.length > 0 ? paths : ["."];
+  }
+
+  /**
+   * Check find command for destructive actions (-delete, -exec, -ok, etc.)
+   * Validates search paths if destructive action is present
+   */
+  private checkFindCommand(command: string): AnalysisResult {
+    // Check for -delete flag
+    const hasDelete = /\s-delete\b/.test(command);
+
+    // Check ALL -exec/-execdir/-ok/-okdir occurrences for dangerous commands
+    const execPattern = /-(?:exec|ok)(?:dir)?\s+(\S+)/g;
+    const execMatches = [...command.matchAll(execPattern)];
+    const dangerousExec = execMatches.find((match) =>
+      DANGEROUS_COMMANDS.has(basename(match[1]))
+    );
+
+    // If no destructive action, allow
+    if (!hasDelete && !dangerousExec) {
+      return { blocked: false };
+    }
+
+    // Extract and validate all search paths
+    const paths = this.extractFindPaths(command);
+
+    for (const path of paths) {
+      if (!this.isPathAllowed(path, false)) {
+        const action = hasDelete ? "-delete" : `-exec ${dangerousExec?.[1]}`;
+        return {
+          blocked: true,
+          reason: `Command "find" with ${action} targets path outside allowed directories: ${path}`,
+        };
+      }
+    }
+
+    return { blocked: false };
+  }
+
+  /**
+   * Check xargs command for dangerous commands
+   * Cannot validate piped input, so block if dangerous command detected
+   */
+  private checkXargsCommand(command: string): AnalysisResult {
+    const tokens = command.trim().split(/\s+/);
+    // xargs options that take an argument
+    const optsWithArgs = new Set(["-I", "-L", "-n", "-P", "-s", "-d", "-E", "-a"]);
+
+    let i = 1; // Skip 'xargs'
+    while (i < tokens.length) {
+      const token = tokens[i];
+
+      // Skip options
+      if (token.startsWith("-")) {
+        // If option takes argument and next token exists, skip it too
+        if (optsWithArgs.has(token) && i + 1 < tokens.length) {
+          i++;
+        }
+        i++;
+        continue;
+      }
+
+      // Found the command xargs will execute
+      const cmd = basename(token);
+      if (DANGEROUS_COMMANDS.has(cmd)) {
+        return {
+          blocked: true,
+          reason: `Command "xargs ${cmd}" blocked - cannot validate piped input`,
+        };
+      }
+      break;
+    }
+
+    return { blocked: false };
+  }
+
   /** Check dangerous commands for external paths */
   private checkDangerousCommand(command: string): AnalysisResult {
     const baseCmd = this.getBaseCommand(command);
+
+    // Special handling for find (can be destructive with -delete or -exec)
+    if (baseCmd === "find") {
+      return this.checkFindCommand(command);
+    }
+
+    // Special handling for xargs (proxies commands with unvalidatable input)
+    if (baseCmd === "xargs") {
+      return this.checkXargsCommand(command);
+    }
 
     if (!DANGEROUS_COMMANDS.has(baseCmd)) {
       return { blocked: false };
@@ -151,7 +285,7 @@ export class CommandAnalyzer {
       if (!this.isPathAllowed(dest, true)) {
         return {
           blocked: true,
-          reason: `Command "${baseCmd}" targets path outside working directory: ${dest}`,
+          reason: `Command "${baseCmd}" targets path outside allowed directories: ${dest}`,
         };
       }
       return { blocked: false };
@@ -164,7 +298,7 @@ export class CommandAnalyzer {
       if (!this.isPathAllowed(path, isWriteCommand)) {
         return {
           blocked: true,
-          reason: `Command "${baseCmd}" targets path outside working directory: ${path}`,
+          reason: `Command "${baseCmd}" targets path outside allowed directories: ${path}`,
         };
       }
     }
@@ -177,6 +311,14 @@ export class CommandAnalyzer {
     // Check redirects
     const redirectResult = this.checkRedirects(command);
     if (redirectResult.blocked) return redirectResult;
+
+    // Check find commands BEFORE splitting (find uses ; as -exec terminator, not shell separator)
+    // Only return early if BLOCKED - otherwise continue to check piped commands (e.g., find | xargs rm)
+    const baseCmd = this.getBaseCommand(command);
+    if (baseCmd === "find") {
+      const findResult = this.checkFindCommand(command);
+      if (findResult.blocked) return findResult;
+    }
 
     // Split by chain operators and check each
     const commands = this.splitCommands(command);
@@ -201,7 +343,7 @@ export class CommandAnalyzer {
     ) {
       return {
         blocked: true,
-        reason: `File operation targets path outside working directory: ${path}`,
+        reason: `File operation targets path outside allowed directories: ${path}`,
       };
     }
 
