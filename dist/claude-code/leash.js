@@ -123,17 +123,21 @@ var CommandAnalyzer = class {
     this.workingDirectory = dirs[0];
     this.pathValidator = new PathValidator(dirs);
   }
-  /** Extract potential paths from command string */
+  /**
+   * Extract potential paths from command string, preserving argument order.
+   * Uses single-pass regex to match quoted and unquoted arguments left-to-right.
+   */
   extractPaths(command) {
+    const argPattern = /["']([^"']+)["']|(\S+)/g;
     const paths = [];
-    const quoted = command.match(/["']([^"']+)["']/g) || [];
-    quoted.forEach((q) => paths.push(q.slice(1, -1)));
-    const tokens = command.replace(/["'][^"']*["']/g, "").split(/\s+/).filter((t) => !t.startsWith("-"));
-    tokens.forEach((t) => {
-      if (t.includes("/") || t.startsWith("~") || t.startsWith(".") || t.startsWith("$")) {
-        paths.push(t);
+    let match;
+    while ((match = argPattern.exec(command)) !== null) {
+      const arg = match[1] ?? match[2];
+      if (arg.startsWith("-")) continue;
+      if (arg.includes("/") || arg.startsWith("~") || arg.startsWith(".") || arg.startsWith("$")) {
+        paths.push(arg);
       }
-    });
+    }
     return paths;
   }
   /** Get the base command name */

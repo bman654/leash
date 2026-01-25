@@ -29,30 +29,33 @@ export class CommandAnalyzer {
     this.pathValidator = new PathValidator(dirs);
   }
 
-  /** Extract potential paths from command string */
+  /**
+   * Extract potential paths from command string, preserving argument order.
+   * Uses single-pass regex to match quoted and unquoted arguments left-to-right.
+   */
   private extractPaths(command: string): string[] {
+    // Match arguments in order: quoted strings OR unquoted tokens
+    const argPattern = /["']([^"']+)["']|(\S+)/g;
     const paths: string[] = [];
+    let match;
 
-    // Match quoted strings
-    const quoted = command.match(/["']([^"']+)["']/g) || [];
-    quoted.forEach((q) => paths.push(q.slice(1, -1)));
+    while ((match = argPattern.exec(command)) !== null) {
+      // Group 1 = quoted content (without quotes), Group 2 = unquoted token
+      const arg = match[1] ?? match[2];
 
-    // Match unquoted paths
-    const tokens = command
-      .replace(/["'][^"']*["']/g, "")
-      .split(/\s+/)
-      .filter((t) => !t.startsWith("-"));
+      // Skip flags
+      if (arg.startsWith("-")) continue;
 
-    tokens.forEach((t) => {
+      // Filter for path-like arguments
       if (
-        t.includes("/") ||
-        t.startsWith("~") ||
-        t.startsWith(".") ||
-        t.startsWith("$")
+        arg.includes("/") ||
+        arg.startsWith("~") ||
+        arg.startsWith(".") ||
+        arg.startsWith("$")
       ) {
-        paths.push(t);
+        paths.push(arg);
       }
-    });
+    }
 
     return paths;
   }
