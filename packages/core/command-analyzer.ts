@@ -125,8 +125,55 @@ export class CommandAnalyzer {
     return commands;
   }
 
+  /**
+   * Replace characters inside single/double quotes with a neutral placeholder,
+   * preserving string length. This prevents regex-based checks from matching
+   * shell operators that appear inside quoted strings (e.g., `>` in sed patterns).
+   */
+  private stripQuotedContent(command: string): string {
+    let result = "";
+    let inSingleQuote = false;
+    let inDoubleQuote = false;
+    let i = 0;
+
+    while (i < command.length) {
+      const char = command[i];
+      const nextChar = command[i + 1];
+
+      if (char === "\\" && !inSingleQuote) {
+        if (inDoubleQuote) {
+          result += "XX";
+        } else {
+          result += char + (nextChar || "");
+        }
+        i += 2;
+        continue;
+      }
+
+      if (char === "'" && !inDoubleQuote) {
+        inSingleQuote = !inSingleQuote;
+        result += char;
+        i++;
+        continue;
+      }
+
+      if (char === '"' && !inSingleQuote) {
+        inDoubleQuote = !inDoubleQuote;
+        result += char;
+        i++;
+        continue;
+      }
+
+      result += inSingleQuote || inDoubleQuote ? "X" : char;
+      i++;
+    }
+
+    return result;
+  }
+
   private checkRedirects(command: string): AnalysisResult {
-    const matches = command.matchAll(REDIRECT_PATTERN);
+    const unquoted = this.stripQuotedContent(command);
+    const matches = unquoted.matchAll(REDIRECT_PATTERN);
 
     for (const match of matches) {
       const path = match[1];
