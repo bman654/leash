@@ -462,16 +462,17 @@ async function main() {
   const projectDisplay = projectDir ? `Project directory: ${projectDir}` : "Project directory: (not set)";
   const dirsDisplay = directories.length === 1 ? `Allowed directory: ${directories[0]}` : `Allowed directories:
   - ${directories.join("\n  - ")}`;
-  if (tool_name === "Bash") {
+  if (tool_name === "Bash" || tool_name === "Monitor") {
     const command = tool_input.command || "";
     const result = analyzer.analyze(command);
     if (result.blocked) {
+      const action = tool_name === "Monitor" ? "Guide the user to run the watch manually (e.g. in a separate terminal) and ask them to report back when the condition you were watching for triggers." : "Guide the user to run the command manually.";
       console.error(
         `\u{1F6AB} Command blocked: ${command}
 Reason: ${result.reason}
 ${projectDisplay}
 ${dirsDisplay}
-Action: Guide the user to run the command manually.`
+Action: ${action}`
       );
       process.exit(2);
     }

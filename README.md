@@ -48,7 +48,7 @@ Add to `~/.claude/settings.json`:
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|Write|Edit",
+        "matcher": "Bash|Monitor|Write|Edit",
         "hooks": [
           {
             "type": "command",
@@ -121,7 +121,7 @@ By default, Leash restricts operations to the current working directory and temp
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|Write|Edit",
+        "matcher": "Bash|Monitor|Write|Edit",
         "hooks": [
           {
             "type": "command",

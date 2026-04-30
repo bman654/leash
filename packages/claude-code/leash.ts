@@ -99,17 +99,21 @@ async function main() {
       : `Allowed directories:\n  - ${directories.join("\n  - ")}`;
 
   // Shell command execution
-  if (tool_name === "Bash") {
+  if (tool_name === "Bash" || tool_name === "Monitor") {
     const command = tool_input.command || "";
     const result = analyzer.analyze(command);
 
     if (result.blocked) {
+      const action =
+        tool_name === "Monitor"
+          ? "Guide the user to run the watch manually (e.g. in a separate terminal) and ask them to report back when the condition you were watching for triggers."
+          : "Guide the user to run the command manually.";
       console.error(
         `🚫 Command blocked: ${command}\n` +
           `Reason: ${result.reason}\n` +
           `${projectDisplay}\n` +
           `${dirsDisplay}\n` +
-          `Action: Guide the user to run the command manually.`
+          `Action: ${action}`
       );
       process.exit(2);
     }
